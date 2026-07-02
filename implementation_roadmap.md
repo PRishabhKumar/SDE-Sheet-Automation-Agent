@@ -97,6 +97,9 @@ cd "D:\RISHABH\Tools\sde-agent"
 # Initialize the Node.js project (accept all defaults)
 npm init -y
 
+# Configure package.json to use ES modules
+npm pkg set type="module"
+
 # Install all runtime dependencies in one command
 npm install node-cron puppeteer simple-git @anthropic-ai/sdk dotenv winston node-notifier systray-v2 axios
 
@@ -193,11 +196,15 @@ MAX_GIT_RETRIES=3
 This centralizes all configuration and exposes it as a typed object throughout the codebase:
 
 ```javascript
-require('dotenv').config();
-const path = require('path');
-const os = require('os');
+import 'dotenv/config';
+import path from 'path';
+import os from 'os';
+import { fileURLToPath } from 'url';
 
-module.exports = {
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+export default {
   paths: {
     sdeSheet: process.env.SDE_SHEET_PATH,
     images: process.env.IMAGES_PATH,
@@ -246,8 +253,12 @@ module.exports = {
 All modules import this instead of using `console.log`. Every log entry is timestamped and tagged with the calling module's name.
 
 ```javascript
-const winston = require('winston');
-const path = require('path');
+import winston from 'winston';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 const logger = winston.createLogger({
   level: 'info',
@@ -278,7 +289,7 @@ const logger = winston.createLogger({
   ],
 });
 
-module.exports = logger;
+export default logger;
 ```
 
 ### 4.2 `src/utils/stateManager.js`
@@ -286,8 +297,8 @@ module.exports = logger;
 Every module reads/writes `state.json` through this utility to ensure consistency.
 
 ```javascript
-const fs = require('fs').promises;
-const config = require('../../config/config');
+import { promises as fs } from 'fs';
+import config from '../../config/config.js';
 
 const DEFAULT_STATE = {
   currentDay: 0,
@@ -335,7 +346,7 @@ async function resetDailyState(newDay) {
   });
 }
 
-module.exports = { readState, writeState, resetDailyState };
+export { readState, writeState, resetDailyState };
 ```
 
 ### 4.3 `src/utils/notifier.js`
@@ -343,8 +354,12 @@ module.exports = { readState, writeState, resetDailyState };
 Wraps `node-notifier` with a consistent icon and sound.
 
 ```javascript
-const notifier = require('node-notifier');
-const path = require('path');
+import notifier from 'node-notifier';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 function notify(title, message) {
   return new Promise((resolve) => {
@@ -384,7 +399,7 @@ function notifyWithConfirm(title, message) {
   });
 }
 
-module.exports = { notify, notifyWithConfirm };
+export { notify, notifyWithConfirm };
 ```
 
 ### 4.4 `src/utils/unicodeBold.js`
@@ -427,7 +442,7 @@ function toBold(str) {
     .join('');
 }
 
-module.exports = { toBold };
+export { toBold };
 ```
 
 ---
@@ -437,12 +452,12 @@ module.exports = { toBold };
 ### 5.1 `src/folderManager.js`
 
 ```javascript
-const fs = require('fs').promises;
-const path = require('path');
-const config = require('../config/config');
-const logger = require('./utils/logger');
-const { writeState } = require('./utils/stateManager');
-const { notify } = require('./utils/notifier');
+import { promises as fs } from 'fs';
+import path from 'path';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
+import { writeState } from './utils/stateManager.js';
+import { notify } from './utils/notifier.js';
 
 /**
  * Scans a directory for "Day N" folders and returns the highest N found.
@@ -524,7 +539,7 @@ async function createDayFolders() {
   }
 }
 
-module.exports = { createDayFolders };
+export { createDayFolders };
 ```
 
 ### 5.2 `src/sdeSheetScraper.js`
@@ -532,9 +547,9 @@ module.exports = { createDayFolders };
 > **Critical:** Before using this module in production, run the `debugLocalStorage()` function (Section 9) to discover the exact localStorage key format TUF uses for checked problems. Update the filter logic in `getTodaysProblems()` accordingly.
 
 ```javascript
-const puppeteer = require('puppeteer');
-const config = require('../config/config');
-const logger = require('./utils/logger');
+import puppeteer from 'puppeteer';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
 
 /**
  * Launches headless Puppeteer, navigates to TUF SDE Sheet,
@@ -700,7 +715,7 @@ async function getTodaysProblems() {
  * manually, then look at the console output to see the localStorage key format.
  *
  * Usage:
- *   node -e "require('./src/sdeSheetScraper').debugLocalStorage()"
+ *   node -e "import('./src/sdeSheetScraper.js').then(m => m.debugLocalStorage())"
  */
 async function debugLocalStorage() {
   console.log('Opening TUF SDE Sheet in visible browser for inspection...');
@@ -745,17 +760,17 @@ async function debugLocalStorage() {
   console.log(JSON.stringify(lastSnapshot, null, 2));
 }
 
-module.exports = { getTodaysProblems, debugLocalStorage };
+export { getTodaysProblems, debugLocalStorage };
 ```
 
 ### 5.3 `src/fileCreator.js`
 
 ```javascript
-const fs = require('fs').promises;
-const path = require('path');
-const config = require('../config/config');
-const logger = require('./utils/logger');
-const { writeState } = require('./utils/stateManager');
+import { promises as fs } from 'fs';
+import path from 'path';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
+import { writeState } from './utils/stateManager.js';
 
 /**
  * Converts a problem name to a safe Java file name.
@@ -865,17 +880,17 @@ async function createJavaFiles(problems, dayNum) {
   return createdFiles;
 }
 
-module.exports = { createJavaFiles };
+export { createJavaFiles };
 ```
 
 ### 5.4 `src/submissionMonitor.js`
 
 ```javascript
-const puppeteer = require('puppeteer');
-const { EventEmitter } = require('events');
-const config = require('../config/config');
-const logger = require('./utils/logger');
-const { readState, writeState } = require('./utils/stateManager');
+import puppeteer from 'puppeteer';
+import { EventEmitter } from 'events';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
+import { readState, writeState } from './utils/stateManager.js';
 
 const monitorEmitter = new EventEmitter();
 let pollingTimer = null;
@@ -1011,17 +1026,17 @@ function stopMonitoring() {
   }
 }
 
-module.exports = { startMonitoring, stopMonitoring, monitorEmitter };
+export { startMonitoring, stopMonitoring, monitorEmitter };
 ```
 
 ### 5.5 `src/gitAutomation.js`
 
 ```javascript
-const simpleGit = require('simple-git');
-const config = require('../config/config');
-const logger = require('./utils/logger');
-const { writeState } = require('./utils/stateManager');
-const { notify } = require('./utils/notifier');
+import simpleGit from 'simple-git';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
+import { writeState } from './utils/stateManager.js';
+import { notify } from './utils/notifier.js';
 
 function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
@@ -1095,22 +1110,26 @@ async function commitAndPush(dayNum) {
   }
 }
 
-module.exports = { commitAndPush };
+export { commitAndPush };
 ```
 
 ### 5.6 `src/linkedinPost.js`
 
 ```javascript
-const Anthropic = require('@anthropic-ai/sdk');
-const axios = require('axios');
-const fs = require('fs').promises;
-const path = require('path');
-const { execSync } = require('child_process');
-const config = require('../config/config');
-const logger = require('./utils/logger');
-const { writeState } = require('./utils/stateManager');
-const { notify, notifyWithConfirm } = require('./utils/notifier');
-const { toBold } = require('./utils/unicodeBold');
+import Anthropic from '@anthropic-ai/sdk';
+import axios from 'axios';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { execSync } from 'child_process';
+import { fileURLToPath } from 'url';
+import config from '../config/config.js';
+import logger from './utils/logger.js';
+import { writeState } from './utils/stateManager.js';
+import { notify, notifyWithConfirm } from './utils/notifier.js';
+import { toBold } from './utils/unicodeBold.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // ──────────────────────────────────────────────────────────────────────────────
 // PART 1: Generate post content via Anthropic Claude API
@@ -1366,15 +1385,15 @@ async function createAndPublishPost(dayNum, problems) {
   }
 }
 
-module.exports = { createAndPublishPost };
+export { createAndPublishPost };
 ```
 
 ### 5.7 `src/scheduler.js`
 
 ```javascript
-const cron = require('node-cron');
-const { EventEmitter } = require('events');
-const logger = require('./utils/logger');
+import cron from 'node-cron';
+import { EventEmitter } from 'events';
+import logger from './utils/logger.js';
 
 const schedulerEmitter = new EventEmitter();
 
@@ -1397,17 +1416,21 @@ function startScheduler() {
   });
 }
 
-module.exports = { startScheduler, schedulerEmitter };
+export { startScheduler, schedulerEmitter };
 ```
 
 ### 5.8 `src/systemTray.js`
 
 ```javascript
-const SysTray = require('systray-v2').default;
-const { exec } = require('child_process');
-const path = require('path');
-const logger = require('./utils/logger');
-const { readState } = require('./utils/stateManager');
+import SysTray from 'systray-v2';
+import { exec } from 'child_process';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import logger from './utils/logger.js';
+import { readState } from './utils/stateManager.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let tray = null;
 
@@ -1498,7 +1521,7 @@ function updateStatus(status) {
   });
 }
 
-module.exports = { createTray, updateStatus };
+export { createTray, updateStatus };
 ```
 
 ---
@@ -1506,18 +1529,18 @@ module.exports = { createTray, updateStatus };
 ## 6. Main Orchestrator (`main.js`)
 
 ```javascript
-require('dotenv').config();
-const { EventEmitter } = require('events');
-const logger = require('./src/utils/logger');
-const { readState, writeState } = require('./src/utils/stateManager');
-const { startScheduler, schedulerEmitter } = require('./src/scheduler');
-const { createDayFolders } = require('./src/folderManager');
-const { getTodaysProblems } = require('./src/sdeSheetScraper');
-const { createJavaFiles } = require('./src/fileCreator');
-const { startMonitoring, stopMonitoring, monitorEmitter } = require('./src/submissionMonitor');
-const { commitAndPush } = require('./src/gitAutomation');
-const { createAndPublishPost } = require('./src/linkedinPost');
-const { createTray, updateStatus } = require('./src/systemTray');
+import 'dotenv/config';
+import { EventEmitter } from 'events';
+import logger from './src/utils/logger.js';
+import { readState, writeState } from './src/utils/stateManager.js';
+import { startScheduler, schedulerEmitter } from './src/scheduler.js';
+import { createDayFolders } from './src/folderManager.js';
+import { getTodaysProblems } from './src/sdeSheetScraper.js';
+import { createJavaFiles } from './src/fileCreator.js';
+import { startMonitoring, stopMonitoring, monitorEmitter } from './src/submissionMonitor.js';
+import { commitAndPush } from './src/gitAutomation.js';
+import { createAndPublishPost } from './src/linkedinPost.js';
+import { createTray, updateStatus } from './src/systemTray.js';
 
 const orchestrator = new EventEmitter();
 
